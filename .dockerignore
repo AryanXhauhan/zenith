@@ -1,0 +1,11 @@
+target/
+*.jar
+*.class
+.git/
+.gitignore
+README.md
+Dockerfile
+docker-compose.yml
+k8s/
+contracts/
+*.md

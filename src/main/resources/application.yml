@@ -1,0 +1,99 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: zenith-settlement-engine
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:zenith}
+    username: ${DB_USER:zenith_user}
+    password: ${DB_PASSWORD:zenith_secret}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+  # ── Flyway DB Migrations ────────────────────────────────────────────────────
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  # ── Redis ───────────────────────────────────────────────────────────────────
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 2
+          max-wait: -1ms
+      timeout: 2000ms
+
+# ── Zenith Custom Config ────────────────────────────────────────────────────
+zenith:
+  # API Key settings
+  api-key:
+    header: X-Zenith-Key
+    # In production this comes from a secrets manager / K8s secret
+    master-key: ${ZENITH_MASTER_KEY:dev-master-key-changeme}
+
+  # Rate limiting tiers (requests per second)
+  rate-limit:
+    free:
+      rps: 5
+      burst: 10
+    pro:
+      rps: 100
+      burst: 200
+    enterprise:
+      rps: 1000
+      burst: 2000
+
+  # Idempotency TTL in seconds (24 hours)
+  idempotency:
+    ttl-seconds: 86400
+
+  # Web3 / Blockchain
+  web3:
+    rpc-url: ${WEB3_RPC_URL:https://sepolia.infura.io/v3/YOUR_INFURA_KEY}
+    private-key: ${WEB3_PRIVATE_KEY:0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}
+    escrow-contract-address: ${ESCROW_CONTRACT:0x0000000000000000000000000000000000000000}
+    chain-id: ${CHAIN_ID:11155111}   # Sepolia testnet
+
+# ── Actuator / Health ──────────────────────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%X{traceId}] %-5level %logger{36} - %msg%n"
+  level:
+    com.zenith: DEBUG
+    org.springframework.web: INFO

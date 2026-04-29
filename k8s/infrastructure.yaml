@@ -1,0 +1,77 @@
+---
+# ── Namespace ─────────────────────────────────────────────────────
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: zenith
+  labels:
+    environment: production
+
+---
+# ── ConfigMap: non-sensitive configuration ────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: zenith-config
+  namespace: zenith
+data:
+  redis.host: "zenith-redis"
+  redis.port: "6379"
+  web3.rpc-url: "https://sepolia.infura.io/v3/YOUR_INFURA_KEY"
+  web3.escrow-contract: "0x0000000000000000000000000000000000000000"
+
+---
+# ── Redis Deployment ──────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zenith-redis
+  namespace: zenith
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zenith-redis
+  template:
+    metadata:
+      labels:
+        app: zenith-redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7.2-alpine
+          command: ["redis-server", "--maxmemory", "512mb", "--maxmemory-policy", "allkeys-lru"]
+          ports:
+            - containerPort: 6379
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+
+---
+# ── Redis Service ─────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: zenith-redis
+  namespace: zenith
+spec:
+  selector:
+    app: zenith-redis
+  ports:
+    - port: 6379
+      targetPort: 6379
+  type: ClusterIP

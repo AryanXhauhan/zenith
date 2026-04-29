@@ -1,0 +1,152 @@
+# ─────────────────────────────────────────────────────────────────
+#  Zenith Settlement Engine  –  Kubernetes Deployment
+#  Module 5: Infrastructure
+# ─────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zenith-settlement-engine
+  namespace: zenith
+  labels:
+    app: zenith-settlement-engine
+    tier: backend
+    version: "1.0.0"
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: zenith-settlement-engine
+  # Rolling update strategy – zero-downtime deploys
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: zenith-settlement-engine
+        tier: backend
+    spec:
+      # ── Security Context ──────────────────────────────────────────
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+
+      # ── Graceful shutdown ─────────────────────────────────────────
+      terminationGracePeriodSeconds: 60
+
+      containers:
+        - name: zenith-settlement-engine
+          image: your-registry/zenith-settlement-engine:1.0.0
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http
+
+          # ── Environment Variables from Secrets / ConfigMap ────────
+          env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: zenith-db-secret
+                  key: host
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: zenith-db-secret
+                  key: database
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: zenith-db-secret
+                  key: username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: zenith-db-secret
+                  key: password
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: zenith-config
+                  key: redis.host
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: zenith-config
+                  key: redis.port
+            - name: ZENITH_MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: zenith-api-secret
+                  key: master-key
+            - name: WEB3_RPC_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: zenith-config
+                  key: web3.rpc-url
+            - name: WEB3_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: zenith-web3-secret
+                  key: private-key
+            - name: ESCROW_CONTRACT
+              valueFrom:
+                configMapKeyRef:
+                  name: zenith-config
+                  key: web3.escrow-contract
+
+          # ── Resource Requests & Limits ────────────────────────────
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+
+          # ── Liveness Probe ─────────────────────────────────────────
+          # K8s restarts the pod if the app becomes unresponsive.
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 3
+            timeoutSeconds: 5
+
+          # ── Readiness Probe ────────────────────────────────────────
+          # Pod won't receive traffic until this passes (DB + Redis connected).
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 3
+            timeoutSeconds: 5
+
+          # ── Startup Probe ──────────────────────────────────────────
+          # Allows up to 3 min for initial startup (Flyway migration time).
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 18
+            timeoutSeconds: 5
+
+      # ── Topology Spread ───────────────────────────────────────────
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: zenith-settlement-engine

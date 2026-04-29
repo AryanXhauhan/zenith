@@ -1,0 +1,18 @@
+---
+# ── Service (ClusterIP + NodePort for local dev) ─────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: zenith-settlement-engine
+  namespace: zenith
+  labels:
+    app: zenith-settlement-engine
+spec:
+  selector:
+    app: zenith-settlement-engine
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+      protocol: TCP
+  type: ClusterIP
