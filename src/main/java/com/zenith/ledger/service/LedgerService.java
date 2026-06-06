@@ -83,12 +83,36 @@ public class LedgerService {
         Account dest   = accountRepository.findByAccountNumber(destNum)
                 .orElseThrow(() -> new ResourceNotFoundException("Account not found: " + destNum));
 
-        // Lock both accounts in a consistent order to prevent deadlocks
-        UUID firstLockId  = source.getId().compareTo(dest.getId()) < 0 ? source.getId() : dest.getId();
-        UUID secondLockId = source.getId().compareTo(dest.getId()) < 0 ? dest.getId()   : source.getId();
+        // Zenith System Account for Fees
+        Account systemVault = accountRepository.findByAccountNumber("ZNT-SYSTEM")
+                .orElseGet(() -> {
+                    Account vault = Account.builder()
+                            .ownerId("SYSTEM")
+                            .accountNumber("ZNT-SYSTEM")
+                            .accountName("Zenith System Vault")
+                            .balance(BigDecimal.ZERO)
+                            .currency(request.currency())
+                            .accountType(Account.AccountType.FEE)
+                            .status(Account.AccountStatus.ACTIVE)
+                            .build();
+                    return accountRepository.save(vault);
+                });
 
-        accountRepository.findByIdForUpdate(firstLockId);
-        accountRepository.findByIdForUpdate(secondLockId);
+        // Lock all accounts in a consistent order to prevent deadlocks
+        List<UUID> lockIds = java.util.Arrays.asList(source.getId(), dest.getId(), systemVault.getId());
+        lockIds.sort(UUID::compareTo);
+
+        // Reassign accounts with the locked entities to prevent stale reads
+        Account lockedFirst = accountRepository.findByIdForUpdate(lockIds.get(0))
+                .orElseThrow(() -> new ResourceNotFoundException("Account not found: " + lockIds.get(0)));
+        Account lockedSecond = accountRepository.findByIdForUpdate(lockIds.get(1))
+                .orElseThrow(() -> new ResourceNotFoundException("Account not found: " + lockIds.get(1)));
+        Account lockedThird = accountRepository.findByIdForUpdate(lockIds.get(2))
+                .orElseThrow(() -> new ResourceNotFoundException("Account not found: " + lockIds.get(2)));
+
+        source = source.getId().equals(lockIds.get(0)) ? lockedFirst : (source.getId().equals(lockIds.get(1)) ? lockedSecond : lockedThird);
+        dest = dest.getId().equals(lockIds.get(0)) ? lockedFirst : (dest.getId().equals(lockIds.get(1)) ? lockedSecond : lockedThird);
+        systemVault = systemVault.getId().equals(lockIds.get(0)) ? lockedFirst : (systemVault.getId().equals(lockIds.get(1)) ? lockedSecond : lockedThird);
 
         // ── Step 2: Validate ────────────────────────────────────────────────
         if (source.getId().equals(dest.getId())) {
@@ -112,21 +136,6 @@ public class LedgerService {
                             + " " + source.getCurrency()
                             + ", Required (including fee): " + totalDebit);
         }
-
-        // Zenith System Account for Fees
-        Account systemVault = accountRepository.findByAccountNumber("ZNT-SYSTEM")
-                .orElseGet(() -> {
-                    Account vault = Account.builder()
-                            .ownerId("SYSTEM")
-                            .accountNumber("ZNT-SYSTEM")
-                            .accountName("Zenith System Vault")
-                            .balance(BigDecimal.ZERO)
-                            .currency(request.currency())
-                            .accountType(Account.AccountType.FEE)
-                            .status(Account.AccountStatus.ACTIVE)
-                            .build();
-                    return accountRepository.save(vault);
-                });
 
         // ── Step 3: Create Transaction header ───────────────────────────────
         Transaction txn = Transaction.builder()

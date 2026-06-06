@@ -42,6 +42,31 @@ public class IdempotencyService {
     private final ZenithProperties              properties;
     private final ObjectMapper                  objectMapper;
 
+    private static final String LOCK_PREFIX = "zenith:idempotency:lock:";
+    private static final Duration LOCK_TTL  = Duration.ofMinutes(1);
+
+    /**
+     * Attempts to acquire an execution lock for the idempotency key.
+     *
+     * @param idempotencyKey the deduplication key
+     * @return true if lock was acquired, false if another request is processing it
+     */
+    public boolean acquireLock(String idempotencyKey) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) return false;
+        Boolean acquired = redisTemplate.opsForValue().setIfAbsent(LOCK_PREFIX + idempotencyKey, "LOCKED", LOCK_TTL);
+        return Boolean.TRUE.equals(acquired);
+    }
+
+    /**
+     * Releases the execution lock for the idempotency key, allowing retries.
+     *
+     * @param idempotencyKey the deduplication key
+     */
+    public void releaseLock(String idempotencyKey) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) return;
+        redisTemplate.delete(LOCK_PREFIX + idempotencyKey);
+    }
+
     /**
      * Looks up a previously cached response for the given idempotency key.
      *
