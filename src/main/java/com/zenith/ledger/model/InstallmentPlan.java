@@ -32,7 +32,8 @@ public class InstallmentPlan {
     private int totalInstallments;
 
     @Column(nullable = false)
-    private int paidInstallments;
+        @Builder.Default
+    private int paidInstallments = 0;
 
     @Column(nullable = false)
     private BigDecimal remainingAmount;
