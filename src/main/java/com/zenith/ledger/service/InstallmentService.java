@@ -20,7 +20,7 @@ public class InstallmentService {
 
     @Transactional
     public InstallmentPlan createPlan(String accountNumber, BigDecimal totalAmount, int months) {
-        BigDecimal installment = totalAmount.divide(BigDecimal.valueOf(months), 2, BigDecimal.ROUND_HALF_UP);
+        BigDecimal installment = totalAmount.divide(BigDecimal.valueOf(months), 2, java.math.RoundingMode.HALF_UP);
         
         InstallmentPlan plan = InstallmentPlan.builder()
                 .accountNumber(accountNumber)

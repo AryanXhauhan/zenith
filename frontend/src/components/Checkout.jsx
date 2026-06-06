@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { 
   ShieldCheck, 
-  Lock, 
   X, 
   Loader2,
   CheckCircle2,
@@ -12,14 +11,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 const API_BASE = 'http://localhost:8080/api/v1';
 
-const ZenithCheckout = ({ amount: initialAmount, currency = "USD", on处理 = () => {}, onClose = () => {} }) => {
+const ZenithCheckout = ({ amount: initialAmount, currency = "USD", onClose = () => {} }) => {
   const [step, setStep] = useState('select'); // select, pay, processing, success
   const [method, setMethod] = useState(null); // upi, card, web3, emi
   const [error, setError] = useState(null);
-  const [amount, setAmount] = useState(initialAmount);
+  const [amount] = useState(initialAmount);
   const [cardData, setCardData] = useState({ number: '', name: '', expiry: '', cvv: '' });
   const [qrScanned, setQrScanned] = useState(false);
   const [selectedEmiMonths, setSelectedEmiMonths] = useState(3);
+  const [txId] = useState(() => 'ZNT-' + (Date.now() + Math.floor(Math.random() * 1000)).toString(36).toUpperCase());
 
   const platformFee = 0.05;
 
@@ -67,7 +67,7 @@ const ZenithCheckout = ({ amount: initialAmount, currency = "USD", on处理 = ()
         setStep('success');
         setTimeout(() => onClose(), 3000);
       }
-    } catch (err) {
+    } catch {
       setError("Payment failed. Please check balance.");
       setStep('pay');
     }
@@ -233,7 +233,7 @@ const ZenithCheckout = ({ amount: initialAmount, currency = "USD", on处理 = ()
                 <h3 className="text-2xl font-bold mb-2 uppercase tracking-tighter">Transaction Success</h3>
                 <p className="text-white/50 text-sm mb-8 font-medium">Order confirmed and ledger entry created.</p>
                 <div className="bg-white/5 p-4 rounded-2xl border border-white/5 mb-8 text-left text-xs font-mono text-white/30 space-y-1">
-                  <div>TX_ID: {Math.random().toString(36).substring(2, 15).toUpperCase()}</div>
+                  <div>TX_ID: {txId}</div>
                   <div>METHOD: {method?.toUpperCase()}</div>
                   <div>STATUS: ATOMIC_SETTLED</div>
                 </div>

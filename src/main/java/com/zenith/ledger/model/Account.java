@@ -16,7 +16,10 @@ import java.util.UUID;
  * The canonical source-of-truth is always the sum of ledger_entries.
  */
 @Entity
-@Table(name = "accounts")
+@Table(name = "accounts", indexes = {
+    @Index(name = "idx_account_number", columnList = "account_number"),
+    @Index(name = "idx_account_owner", columnList = "owner_id")
+})
 @Data
 @Builder
 @NoArgsConstructor
@@ -40,7 +43,8 @@ public class Account {
     private String currency;
 
     @Column(nullable = false, precision = 20, scale = 8)
-    private BigDecimal balance;
+        @Builder.Default
+    private BigDecimal balance = BigDecimal.ZERO;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "account_type", nullable = false)

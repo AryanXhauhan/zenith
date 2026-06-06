@@ -70,7 +70,8 @@ public class Transaction {
     private String blockchainTxHash;
 
     @Column(name = "blockchain_confirmed", nullable = false)
-    private boolean blockchainConfirmed;
+        @Builder.Default
+    private boolean blockchainConfirmed = false;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

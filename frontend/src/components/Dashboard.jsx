@@ -1,11 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
   ArrowUpRight, 
   ArrowDownLeft, 
-  CreditCard, 
   Settings, 
-  Plus, 
   History,
   Calendar,
   ShieldCheck,
@@ -34,7 +32,7 @@ const Dashboard = () => {
   const [emiPlans, setEmiPlans] = useState([]);
   const [apiKey, setApiKey] = useState(null);
   const [walletAddress, setWalletAddress] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const [showCheckout, setShowCheckout] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -45,63 +43,67 @@ const Dashboard = () => {
     { code: 'GBP', symbol: '£', rate: 0.79 }
   ];
 
-  useEffect(() => {
-    fetchAllData();
-    checkWallet();
-    
-    const interval = setInterval(fetchAllData, 10000); // Polling every 10s for production
-    return () => clearInterval(interval);
-  }, []);
-
-  const fetchAllData = async () => {
-    try {
-      setIsRefreshing(true);
-      const accRes = await axios.get(`${API_BASE}/accounts/ZNT-002`, {
-        headers: { 'X-Zenith-Key': MASTER_KEY }
-      });
-      setBalance(accRes.data.balance);
-      
-      const statsRes = await axios.get(`${API_BASE}/ledger/stats`, {
-        headers: { 'X-Zenith-Key': MASTER_KEY }
-      });
-      setStats(statsRes.data);
-
-      const historyRes = await axios.get(`${API_BASE}/ledger/history/ZNT-002`, {
-        headers: { 'X-Zenith-Key': MASTER_KEY }
-      });
-      
-      const emiRes = await axios.get(`${API_BASE}/installments`, {
-        headers: { 'X-Zenith-Key': MASTER_KEY }
-      });
-      setEmiPlans(emiRes.data);
-
-      const mappedHistory = historyRes.data.map(tx => ({
-        id: tx.id,
-        type: tx.description.includes('Fee') ? 'fee' : 'credit',
-        amount: tx.amount,
-        desc: tx.description,
-        date: new Date(tx.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      }));
-
-      setTransactions(mappedHistory);
-    } catch (err) {
-      console.error("Dashboard Sync Failed", err);
-    } finally {
-      setLoading(false);
-      setTimeout(() => setIsRefreshing(false), 500);
-    }
-  };
 
   const formatValue = (val) => {
     return (val * currency.rate).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
-  const checkWallet = async () => {
-    if (window.ethereum) {
-      const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-      if (accounts.length > 0) setWalletAddress(accounts[0]);
-    }
-  };
+  useEffect(() => {
+    const fetchAllData = async () => {
+      try {
+        setIsRefreshing(true);
+        const accRes = await axios.get(`${API_BASE}/accounts/ZNT-002`, {
+          headers: { 'X-Zenith-Key': MASTER_KEY }
+        });
+        setBalance(accRes.data.balance);
+
+        const statsRes = await axios.get(`${API_BASE}/ledger/stats`, {
+          headers: { 'X-Zenith-Key': MASTER_KEY }
+        });
+        setStats(statsRes.data);
+
+        const historyRes = await axios.get(`${API_BASE}/ledger/history/ZNT-002`, {
+          headers: { 'X-Zenith-Key': MASTER_KEY }
+        });
+
+        const emiRes = await axios.get(`${API_BASE}/installments`, {
+          headers: { 'X-Zenith-Key': MASTER_KEY }
+        });
+        setEmiPlans(emiRes.data);
+
+        const mappedHistory = historyRes.data.map(tx => ({
+          id: tx.id,
+          type: tx.description.includes('Fee') ? 'fee' : 'credit',
+          amount: tx.amount,
+          desc: tx.description,
+          date: new Date(tx.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }));
+
+        setTransactions(mappedHistory);
+      } catch {
+        console.error("Dashboard Sync Failed");
+      } finally {
+        setLoading(false);
+        setTimeout(() => setIsRefreshing(false), 500);
+      }
+    };
+
+    const checkWallet = async () => {
+      if (window.ethereum) {
+        const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+        if (accounts.length > 0) setWalletAddress(accounts[0]);
+      }
+    };
+
+    const init = async () => {
+      await fetchAllData();
+      await checkWallet();
+    };
+    init();
+
+    const interval = setInterval(fetchAllData, 10000); // Polling every 10s for production
+    return () => clearInterval(interval);
+  }, []);
 
   const connectWallet = async () => {
     if (window.ethereum) {
