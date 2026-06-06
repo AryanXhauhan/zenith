@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
+import com.zenith.common.exception.ConcurrentRequestException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 
@@ -63,10 +64,7 @@ public class IdempotencyAspect {
         boolean lockAcquired = idempotencyService.acquireLock(idempotencyKey);
         if (!lockAcquired) {
             log.warn("Idempotency: concurrent request detected for key={}", idempotencyKey);
-            return ResponseEntity
-                    .status(org.springframework.http.HttpStatus.CONFLICT)
-                    .header("X-Idempotency-Error", "Concurrent request detected")
-                    .body("A request with this idempotency key is already being processed.");
+            throw new ConcurrentRequestException("A request with idempotency key " + idempotencyKey + " is already being processed.");
         }
 
         try {
@@ -81,10 +79,10 @@ public class IdempotencyAspect {
                 );
             }
             return result;
-        } catch (Exception e) {
+        } catch (Throwable t) {
             // If the transaction fails, release the lock so it can be retried
             idempotencyService.releaseLock(idempotencyKey);
-            throw e;
+            throw t;
         }
     }
 

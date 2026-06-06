@@ -77,42 +77,26 @@ public class LedgerService {
         // ORDER BY account number to prevent deadlock (always lock in same order)
         String srcNum  = request.sourceAccountNumber();
         String destNum = request.destAccountNumber();
+        String sysNum  = "ZNT-SYSTEM";
 
-        Account source = accountRepository.findByAccountNumber(srcNum)
-                .orElseThrow(() -> new ResourceNotFoundException("Account not found: " + srcNum));
-        Account dest   = accountRepository.findByAccountNumber(destNum)
-                .orElseThrow(() -> new ResourceNotFoundException("Account not found: " + destNum));
+        // To prevent lock upgrade deadlocks in REPEATABLE_READ, do not execute a plain SELECT.
+        // If the system account might not exist, we should rely on a pre-initialization step
+        // (e.g. Flyway migration V1) to create it. We can safely lock it directly.
 
-        // Zenith System Account for Fees
-        Account systemVault = accountRepository.findByAccountNumber("ZNT-SYSTEM")
-                .orElseGet(() -> {
-                    Account vault = Account.builder()
-                            .ownerId("SYSTEM")
-                            .accountNumber("ZNT-SYSTEM")
-                            .accountName("Zenith System Vault")
-                            .balance(BigDecimal.ZERO)
-                            .currency(request.currency())
-                            .accountType(Account.AccountType.FEE)
-                            .status(Account.AccountStatus.ACTIVE)
-                            .build();
-                    return accountRepository.save(vault);
-                });
+        // Lock all accounts in a consistent order by account number to prevent deadlocks
+        List<String> lockNums = java.util.Arrays.asList(srcNum, destNum, sysNum);
+        lockNums.sort(String::compareTo);
 
-        // Lock all accounts in a consistent order to prevent deadlocks
-        List<UUID> lockIds = java.util.Arrays.asList(source.getId(), dest.getId(), systemVault.getId());
-        lockIds.sort(UUID::compareTo);
+        Account lockedFirst = accountRepository.findByAccountNumberForUpdate(lockNums.get(0))
+                .orElseThrow(() -> new ResourceNotFoundException("Account not found: " + lockNums.get(0)));
+        Account lockedSecond = accountRepository.findByAccountNumberForUpdate(lockNums.get(1))
+                .orElseThrow(() -> new ResourceNotFoundException("Account not found: " + lockNums.get(1)));
+        Account lockedThird = accountRepository.findByAccountNumberForUpdate(lockNums.get(2))
+                .orElseThrow(() -> new ResourceNotFoundException("Account not found: " + lockNums.get(2)));
 
-        // Reassign accounts with the locked entities to prevent stale reads
-        Account lockedFirst = accountRepository.findByIdForUpdate(lockIds.get(0))
-                .orElseThrow(() -> new ResourceNotFoundException("Account not found: " + lockIds.get(0)));
-        Account lockedSecond = accountRepository.findByIdForUpdate(lockIds.get(1))
-                .orElseThrow(() -> new ResourceNotFoundException("Account not found: " + lockIds.get(1)));
-        Account lockedThird = accountRepository.findByIdForUpdate(lockIds.get(2))
-                .orElseThrow(() -> new ResourceNotFoundException("Account not found: " + lockIds.get(2)));
-
-        source = source.getId().equals(lockIds.get(0)) ? lockedFirst : (source.getId().equals(lockIds.get(1)) ? lockedSecond : lockedThird);
-        dest = dest.getId().equals(lockIds.get(0)) ? lockedFirst : (dest.getId().equals(lockIds.get(1)) ? lockedSecond : lockedThird);
-        systemVault = systemVault.getId().equals(lockIds.get(0)) ? lockedFirst : (systemVault.getId().equals(lockIds.get(1)) ? lockedSecond : lockedThird);
+        Account source = srcNum.equals(lockNums.get(0)) ? lockedFirst : (srcNum.equals(lockNums.get(1)) ? lockedSecond : lockedThird);
+        Account dest = destNum.equals(lockNums.get(0)) ? lockedFirst : (destNum.equals(lockNums.get(1)) ? lockedSecond : lockedThird);
+        Account systemVault = sysNum.equals(lockNums.get(0)) ? lockedFirst : (sysNum.equals(lockNums.get(1)) ? lockedSecond : lockedThird);
 
         // ── Step 2: Validate ────────────────────────────────────────────────
         if (source.getId().equals(dest.getId())) {

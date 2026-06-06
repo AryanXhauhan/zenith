@@ -139,5 +139,5 @@ CREATE TRIGGER trg_transactions_updated_at
 -- ── Seed system accounts ─────────────────────────────────────
 INSERT INTO accounts (owner_id, account_number, currency, balance, account_type)
 VALUES
-    ('SYSTEM', 'ZNT-SYS-FEE-0001', 'USD', 0, 'FEE'),
+    ('SYSTEM', 'ZNT-SYSTEM', 'USD', 0, 'FEE'),
     ('SYSTEM', 'ZNT-SYS-ESC-0001', 'USD', 0, 'ESCROW');
