@@ -59,18 +59,33 @@ public class IdempotencyAspect {
                     .body(record.responseBody());
         }
 
-        // ── Execute and cache ───────────────────────────────────────────────
-        Object result = pjp.proceed();
-
-        if (result instanceof ResponseEntity<?> responseEntity) {
-            idempotencyService.store(
-                    idempotencyKey,
-                    responseEntity.getStatusCode().value(),
-                    responseEntity.getBody()
-            );
+        // Try to acquire an execution lock for this idempotency key to prevent concurrent processing
+        boolean lockAcquired = idempotencyService.acquireLock(idempotencyKey);
+        if (!lockAcquired) {
+            log.warn("Idempotency: concurrent request detected for key={}", idempotencyKey);
+            return ResponseEntity
+                    .status(org.springframework.http.HttpStatus.CONFLICT)
+                    .header("X-Idempotency-Error", "Concurrent request detected")
+                    .body("A request with this idempotency key is already being processed.");
         }
 
-        return result;
+        try {
+            // ── Execute and cache ───────────────────────────────────────────────
+            Object result = pjp.proceed();
+
+            if (result instanceof ResponseEntity<?> responseEntity) {
+                idempotencyService.store(
+                        idempotencyKey,
+                        responseEntity.getStatusCode().value(),
+                        responseEntity.getBody()
+                );
+            }
+            return result;
+        } catch (Exception e) {
+            // If the transaction fails, release the lock so it can be retried
+            idempotencyService.releaseLock(idempotencyKey);
+            throw e;
+        }
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────
