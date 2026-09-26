@@ -57,16 +57,20 @@ public class ApiKeyService {
         String cacheKey = CACHE_PREFIX + hash;
 
         // ── 1. Cache hit ────────────────────────────────────────────────────
-        Object cached = redisTemplate.opsForValue().get(cacheKey);
-        if (cached != null) {
-            if (INVALID_MARKER.equals(cached)) {
-                log.debug("API key cache: known-invalid key hash={}", hash.substring(0, 8));
-                return Optional.empty();
+        try {
+            Object cached = redisTemplate.opsForValue().get(cacheKey);
+            if (cached != null) {
+                if (INVALID_MARKER.equals(cached)) {
+                    log.debug("API key cache: known-invalid key hash={}", hash.substring(0, 8));
+                    return Optional.empty();
+                }
+                if (cached instanceof ApiKey cachedKey) {
+                    log.debug("API key cache: HIT tier={}", cachedKey.getTier());
+                    return Optional.of(cachedKey);
+                }
             }
-            if (cached instanceof ApiKey cachedKey) {
-                log.debug("API key cache: HIT tier={}", cachedKey.getTier());
-                return Optional.of(cachedKey);
-            }
+        } catch (Exception e) {
+            log.warn("Redis unavailable, skipping cache read");
         }
 
         // ── 2. DB lookup ────────────────────────────────────────────────────
@@ -74,7 +78,7 @@ public class ApiKeyService {
 
         if (found.isEmpty()) {
             // Cache the negative result to prevent DB hammering
-            redisTemplate.opsForValue().set(cacheKey, INVALID_MARKER, Duration.ofSeconds(30));
+            try { redisTemplate.opsForValue().set(cacheKey, INVALID_MARKER, Duration.ofSeconds(30)); } catch (Exception e) {}
             log.warn("API key validation failed for hash prefix={}", hash.substring(0, 8));
             return Optional.empty();
         }
@@ -83,13 +87,13 @@ public class ApiKeyService {
 
         // Check expiry
         if (apiKey.getExpiresAt() != null && apiKey.getExpiresAt().isBefore(Instant.now())) {
-            redisTemplate.opsForValue().set(cacheKey, INVALID_MARKER, Duration.ofSeconds(30));
+            try { redisTemplate.opsForValue().set(cacheKey, INVALID_MARKER, Duration.ofSeconds(30)); } catch (Exception e) {}
             log.warn("API key expired: name={}", apiKey.getName());
             return Optional.empty();
         }
 
         // Populate cache
-        redisTemplate.opsForValue().set(cacheKey, apiKey, CACHE_TTL);
+        try { redisTemplate.opsForValue().set(cacheKey, apiKey, CACHE_TTL); } catch (Exception e) {}
         log.debug("API key cache: MISS – loaded from DB tier={}", apiKey.getTier());
         return Optional.of(apiKey);
     }

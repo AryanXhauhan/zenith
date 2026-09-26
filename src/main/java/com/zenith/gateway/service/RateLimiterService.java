@@ -88,16 +88,20 @@ public class RateLimiterService {
         String bucketKey = KEY_PREFIX + tier.name().toLowerCase() + ":" + clientId;
         long now = System.currentTimeMillis();
 
-        Long result = stringRedisTemplate.execute(
-                TOKEN_BUCKET_SCRIPT,
-                List.of(bucketKey),
-                String.valueOf(config.burst()),
-                String.valueOf(config.rps()),
-                String.valueOf(now),
-                "1"
-        );
-
-        boolean allowed = result != null && result == 1L;
+        boolean allowed = true;
+        try {
+            Long result = stringRedisTemplate.execute(
+                    TOKEN_BUCKET_SCRIPT,
+                    List.of(bucketKey),
+                    String.valueOf(config.burst()),
+                    String.valueOf(config.rps()),
+                    String.valueOf(now),
+                    "1"
+            );
+            allowed = result != null && result == 1L;
+        } catch (Exception e) {
+            log.warn("Redis unavailable, bypassing rate limit");
+        }
         if (!allowed) {
             log.warn("Rate limit exceeded: clientId={} tier={}", clientId, tier);
         }

@@ -53,8 +53,13 @@ public class IdempotencyService {
      */
     public boolean acquireLock(String idempotencyKey) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) return false;
-        Boolean acquired = redisTemplate.opsForValue().setIfAbsent(LOCK_PREFIX + idempotencyKey, "LOCKED", LOCK_TTL);
-        return Boolean.TRUE.equals(acquired);
+        try {
+            Boolean acquired = redisTemplate.opsForValue().setIfAbsent(LOCK_PREFIX + idempotencyKey, "LOCKED", LOCK_TTL);
+            return Boolean.TRUE.equals(acquired);
+        } catch (Exception e) {
+            log.warn("Redis unavailable, bypassing idempotency lock");
+            return true;
+        }
     }
 
     /**
@@ -64,7 +69,7 @@ public class IdempotencyService {
      */
     public void releaseLock(String idempotencyKey) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) return;
-        redisTemplate.delete(LOCK_PREFIX + idempotencyKey);
+        try { redisTemplate.delete(LOCK_PREFIX + idempotencyKey); } catch (Exception e) {}
     }
 
     /**
@@ -76,7 +81,13 @@ public class IdempotencyService {
     public Optional<IdempotencyRecord> findExisting(String idempotencyKey) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) return Optional.empty();
 
-        Object cached = redisTemplate.opsForValue().get(KEY_PREFIX + idempotencyKey);
+        Object cached = null;
+        try {
+            cached = redisTemplate.opsForValue().get(KEY_PREFIX + idempotencyKey);
+        } catch (Exception e) {
+            log.warn("Redis unavailable, bypassing idempotency check");
+            return Optional.empty();
+        }
         if (cached == null) return Optional.empty();
 
         try {
@@ -102,8 +113,10 @@ public class IdempotencyService {
         IdempotencyRecord record = new IdempotencyRecord(idempotencyKey, httpStatus, responseBody);
         Duration ttl = Duration.ofSeconds(properties.idempotency().ttlSeconds());
 
-        redisTemplate.opsForValue().set(KEY_PREFIX + idempotencyKey, record, ttl);
-        log.debug("Idempotency: STORED key={} ttl={}s", idempotencyKey, ttl.getSeconds());
+        try {
+            redisTemplate.opsForValue().set(KEY_PREFIX + idempotencyKey, record, ttl);
+            log.debug("Idempotency: STORED key={} ttl={}s", idempotencyKey, ttl.getSeconds());
+        } catch (Exception e) {}
     }
 
     public record IdempotencyRecord(

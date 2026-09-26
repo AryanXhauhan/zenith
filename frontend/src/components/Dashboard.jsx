@@ -19,9 +19,9 @@ import axios from 'axios';
 import ZenithCheckout from './Checkout';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const API_BASE = 'http://localhost:8080/api/v1';
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8080/api/v1';
 // In production, this would be fetched from a secure session or .env
-const MASTER_KEY = 'dev-master-key-changeme'; 
+const MASTER_KEY = 'test-master-key'; 
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('dashboard');

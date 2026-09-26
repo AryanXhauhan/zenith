@@ -9,7 +9,7 @@ import {
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const API_BASE = 'http://localhost:8080/api/v1';
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8080/api/v1';
 
 const ZenithCheckout = ({ amount: initialAmount, currency = "USD", onClose = () => {} }) => {
   const [step, setStep] = useState('select'); // select, pay, processing, success

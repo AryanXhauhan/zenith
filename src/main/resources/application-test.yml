@@ -1,0 +1,40 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:zenith_test;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+  flyway:
+    enabled: false          # Flyway disabled in tests; JPA creates schema
+  data:
+    redis:
+      host: localhost
+      port: 6370             # Will be overridden by Testcontainers / embedded
+
+zenith:
+  api-key:
+    header: X-Zenith-Key
+    master-key: test-master-key
+  rate-limit:
+    free:
+      rps: 1000
+      burst: 2000
+    pro:
+      rps: 1000
+      burst: 2000
+    enterprise:
+      rps: 1000
+      burst: 2000
+  idempotency:
+    ttl-seconds: 60
+  web3:
+    rpc-url: http://localhost:8545
+    private-key: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+    escrow-contract-address: "0x0000000000000000000000000000000000000000"
+    chain-id: 1337
